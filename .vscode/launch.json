@@ -1,0 +1,29 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Check RSS (template)",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "simple_rss_mailer.py",
+			"console": "integratedTerminal",
+			"args": [
+				"<SNS topic ARN that will be notified of new entries>",
+				"<S3 bucket to remember RSS state to>",
+				"<S3 bucket path prefix>",
+				"<RSS URL to check>"
+			]
+		},
+		{
+			"name": "Test",
+			"type": "debugpy",
+			"request": "launch",
+			"module": "unittest",
+			"console": "integratedTerminal",
+			"args": ["discover", "test"]
+		}
+	]
+}

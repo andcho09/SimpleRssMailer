@@ -1,0 +1,2 @@
+boto3==1.40.6
+feedparser==6.0.11
