@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Deploys Simple Rss Mailer to AWS
+
+# TODO tags
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 30
+    Tracing: Active
+    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
+    LoggingConfig:
+      LogFormat: JSON
+      LogGroup: !Ref Log
+
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: function
+      Handler: simple_rss_mailer.handle
+      #Architectures:
+      #- arm64 # Can't use ARM on x86 without emulation in Docker, see https://github.com/aws/aws-sam-cli/issues/7523
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !GetAtt SnsTopic.TopicArn
+          BUCKET: !Ref Bucket
+          BUCKET_PATH: feeds
+      LoggingConfig:
+        LogGroup: !Ref Log
+      MemorySize: 4096
+      Runtime: python3.13
+      Timeout: 60
+      Tracing: Active
+
+  SnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Topic for new RSS articles
+
+  Log:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupClass: INFREQUENT_ACCESS
+      RetentionInDays: 7
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  LambdaFunction:
+    Description: Lambda Function ARN
+    Value: !GetAtt LambdaFunction.Arn
+  LambdaFunctionIamRole:
+    Description: Implicit IAM Role created for the Lambda function
+    Value: !GetAtt LambdaFunctionRole.Arn
+  TopicArn:
+    Description: SNS Topic ARN
+    Value: !GetAtt SnsTopic.TopicArn

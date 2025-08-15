@@ -4,9 +4,17 @@ Periodically checks an RSS feed and emails the articles.
 
 ## Limitations
 
-Lots
+Functional:
 
 * This is a simple project aimed at a single subscriber so only one email address can be configured.
+
+
+## TODOs
+
+* Add AWS X-ray so we can evaluate performance of Lambda function vs RSS retrieval vs notifications
+* Lambda layers so it's faster to deploy
+* Zip files in S3 so we consume less space
+
 
 ## Developing
 
@@ -15,6 +23,7 @@ Lots
 * Python 3.13
 * AWS account
 * [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for deployment
+* Docker, also for deployment with [AWS SAM which can help avoid issues when apps depend on natively compiled dependencies](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-build.html)
 
 ### First time setup
 
@@ -34,7 +43,7 @@ Lots
 1. Install requirements:
 
 	```
-	pip install -r requirements.txt
+	pip install -r function/requirements.txt
 	```
 
 ### Unit tests
@@ -46,4 +55,19 @@ Run tests either from:
 
 	```
 	python -m unittest discover test
+	```
+
+### Build and deployment
+
+1. Start Docker if the daemon is not already running
+1. AWS SAM build using a container (this is set in the `build` parameters of [samlconfig.toml](samlconfig.toml))
+
+	```
+	sam build
+	```
+
+1. AWS deploy (this will deploy to `us-east-1` as per the [samlconfig.toml](samlconfig.toml))
+
+	```
+	sam deploy
 	```

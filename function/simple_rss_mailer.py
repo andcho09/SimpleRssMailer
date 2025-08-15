@@ -3,11 +3,12 @@ import feedparser
 import hashlib
 import json
 import logging
+import os
 import sys
 import urllib.parse
 import urllib.request
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 class RssStateHandler:
 	"""Saves and retrieves RSS feed using AWS S3. This allows us to remember what the feed looked like the last time we checked it."""
@@ -76,17 +77,16 @@ class RssNotifier:
 
 	def __init__(self, sns_topic_arn: str):
 		self.sns_topic_arn = sns_topic_arn
-		self.client = boto3.client('sns')
+		# Create the client in the topic's region to avoid "InvalidParameter" TopicArn errors on publish
+		self.client = boto3.client('sns', region_name=sns_topic_arn.split(':')[3])
 
 	def notify(self, entry: dict):
 		logger.info(f"Sending notification to SNS topic {self.sns_topic_arn} for entry: title={entry['title']}, id={entry['id']}, published={entry['published']}")
-		# The topic has to be in same region as this is running otherwise this will create "InvalidParameter" TopicArn errors.
 		response: dict = self.client.publish(
 			TopicArn = self.sns_topic_arn,
 			MessageStructure = 'json',
 			Subject = entry['title'],
-			Message = self.generate_notification_message(entry),
-			MessageDeduplicationId = entry['id']
+			Message = self.generate_notification_message(entry)
 		)
 		logger.debug(f"Published SNS notification {response['MessageId']}")
 
@@ -160,17 +160,47 @@ class SimpleRssMailer:
 		else:
 			return entry['link']
 
+def check_feeds(sns_topic_arn: str, bucket: str, bucket_path: str, rss_urls: list[str]) -> int:
+	"""Checks the RSS feeds and sends email-formatted notifications if new entries are found.
+
+	Args:
+		sns_topic_arn (str): SNS topic to send email notifications to
+		bucket (str): S3 bucket used to save RSS feed state (so we remember which articles have been seen already)
+		bucket_path (str): Path within the S3 bucket to save RSS feed state
+		rss_urls (list[str]): List of RSS URLs to check
+
+	Returns:
+		int: _description_
+	"""
+	logger.info(f"Checking RSS feeds. SNS topic ARN: {sns_topic_arn}, S3 bucket: {bucket}, S3 path: {bucket_path}, RSS URLs: {rss_urls}.")
+
+	notifier: RssNotifier = RssNotifier(sns_topic_arn)
+	rss_state: RssStateHandler = RssStateHandler(bucket, bucket_path)
+
+	new_articles: int = 0
+
+	srs: SimpleRssMailer = SimpleRssMailer(rss_state, notifier)
+	for rss_url in rss_urls:
+		new_articles += srs.process_rss_feed(rss_url)
+
+	return new_articles
+
+def handle(event: dict, context: object) -> int:
+	sns_topic_arn: str = os.getenv('SNS_TOPIC_ARN', '<missing>')
+	bucket: str = os.getenv('BUCKET', '<missing>')
+	bucket_path: str = os.getenv('BUCKET_PATH', '<missing>')
+	rss_urls: list[str] = event['rss_urls']
+
+	return check_feeds(sns_topic_arn, bucket, bucket_path, rss_urls)
+
 if __name__ == '__main__':
+	logging.basicConfig() # Basic logging to standard out
+	logger.setLevel(logging.DEBUG)
+
 	sns_topic_arn: str = sys.argv[1]
 	bucket: str = sys.argv[2]
 	bucket_path: str = sys.argv[3]
 	rss_urls: list[str] = sys.argv[4:]
 
-	logger.info(f"Checking RSS feeds. SNS topic ARN: {sns_topic_arn}, S3 bucket: {bucket}, S3 path: {bucket_path}, RSS URLs: {rss_urls}.")
-
-	noitifier: RssNotifier = RssNotifier(sns_topic_arn)
-	rss_state: RssStateHandler = RssStateHandler(bucket, bucket_path)
-
-	srs: SimpleRssMailer = SimpleRssMailer(rss_state, noitifier)
-	for rss_url in rss_urls:
-		srs.process_rss_feed(rss_url)
+	new_articles: int = check_feeds(sns_topic_arn, bucket, bucket_path, rss_urls)
+	logger.info(f"Number of new articles found: {new_articles}")
