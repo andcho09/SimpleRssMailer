@@ -12,7 +12,6 @@ Functional:
 ## TODOs
 
 * Lambda layers so it's faster to deploy
-* EventBridge scheduler to kick this thing off
 * Feedparser is slow. Maybe use https://github.com/kagisearch/fastfeedparser instead?
 
 

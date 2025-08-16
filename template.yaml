@@ -19,6 +19,7 @@ Resources:
   LambdaFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
+      Description: Checks RSS feeds for new articles and sends email notifications
       CodeUri: function
       Handler: simple_rss_mailer.handle
       #Architectures:
@@ -28,6 +29,17 @@ Resources:
           SNS_TOPIC_ARN: !GetAtt SnsTopic.TopicArn
           BUCKET: !Ref Bucket
           BUCKET_PATH: feeds
+      Events:
+        Schedule:
+          Type: ScheduleV2
+          Properties:
+            Name: CheckRssFeeds
+            Description: Schedule to check RSS feeds
+            FlexibleTimeWindow:
+              MaximumWindowInMinutes: 15
+              Mode: FLEXIBLE
+            Input: '{"rss_urls": ["https://www.keycloak.org/rss.xml"]}' # RSS feeds to check
+            ScheduleExpression: cron(0 22 * * ? *) # Everyday at 10PM UTC
       LoggingConfig:
         LogGroup: !Ref Log
       MemorySize: 4096
