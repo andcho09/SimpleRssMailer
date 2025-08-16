@@ -34,6 +34,20 @@ Resources:
       Runtime: python3.13
       Timeout: 60
       Tracing: Active
+    Connectors:
+      SNS:
+        Properties:
+          Destination:
+            - Id: SnsTopic
+          Permissions:
+            - Write
+      S3:
+        Properties:
+          Destination:
+            - Id: Bucket
+          Permissions:
+            - Read
+            - Write
 
   SnsTopic:
     Type: AWS::SNS::Topic

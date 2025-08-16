@@ -17,6 +17,7 @@ Functional:
 	* Diffing
 	* Notifications
 * Lambda layers so it's faster to deploy
+* EventBridge scheduler to kick this thing off
 
 
 ## Developing
@@ -65,12 +66,28 @@ Run tests either from:
 1. Start Docker if the daemon is not already running
 1. AWS SAM build using a container (this is set in the `build` parameters of [samlconfig.toml](samlconfig.toml))
 
-	```
+	```sh
 	sam build
 	```
 
 1. AWS deploy (this will deploy to `us-east-1` as per the [samlconfig.toml](samlconfig.toml))
 
-	```
+	```sh
 	sam deploy
+	```
+
+1. Test the deployment by invoking the Lambda function, e.g.
+
+	```sh
+	aws lambda invoke --function-name <insert_actual_function_name> --payload '{"rss_urls": ["https://www.keycloak.org/rss.xml"]}' --cli-binary-format raw-in-base64-out output.txt --region us-east-1
+	```
+
+	Where the payload might be (formatted for readability):
+
+	```json
+	{
+		"rss_urls": [
+			"https://www.keycloak.org/rss.xml"
+		]
+	}
 	```
