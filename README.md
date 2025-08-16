@@ -11,9 +11,12 @@ Functional:
 
 ## TODOs
 
-* Add AWS X-ray so we can evaluate performance of Lambda function vs RSS retrieval vs notifications
+* Add AWS X-ray so we can evaluate performance of:
+	* Lambda function overall
+	* RSS retrieval
+	* Diffing
+	* Notifications
 * Lambda layers so it's faster to deploy
-* Zip files in S3 so we consume less space
 
 
 ## Developing

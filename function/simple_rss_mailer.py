@@ -1,5 +1,6 @@
 import boto3
 import feedparser
+import gzip
 import hashlib
 import json
 import logging
@@ -12,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 class RssStateHandler:
 	"""Saves and retrieves RSS feed using AWS S3. This allows us to remember what the feed looked like the last time we checked it."""
+
+	CONTENT_ENCODING = 'content-encoding'
+	GZIP = 'gzip'
 
 	@staticmethod
 	def calculate_s3_key(s3_path_prefix: str, rss_url: str) -> str:
@@ -55,7 +59,12 @@ class RssStateHandler:
 		s3_key: str = RssStateHandler.calculate_s3_key(self.s3_bucket_path, rss_url)
 		logger.debug(f"Getting RSS state for feed '{rss_url}' from S3 at '{s3_key}'")
 		try:
-			return self.client.get_object(Bucket=self.s3_bucket_name, Key=s3_key).get('Body').read().decode()
+			s3_response: dict = self.client.get_object(Bucket=self.s3_bucket_name, Key=s3_key)
+			content_bytes: bytes = s3_response['Body'].read()
+			if s3_response['Metadata'].get(RssStateHandler.CONTENT_ENCODING) == RssStateHandler.GZIP:
+				return gzip.decompress(content_bytes).decode()
+			else:
+				return content_bytes.decode()
 		except self.client.exceptions.NoSuchKey:
 			return ""
 
@@ -68,8 +77,8 @@ class RssStateHandler:
 		"""
 		s3_key: str = RssStateHandler.calculate_s3_key(self.s3_bucket_path, rss_url)
 		logger.debug(f"Saving RSS state for feed '{rss_url}' to S3 at '{s3_key}'")
-
-		self.client.put_object(Bucket=self.s3_bucket_name, Key=s3_key, Body=rss_blob)
+		compressed_rss_blob: bytes = gzip.compress(rss_blob.encode())
+		self.client.put_object(Bucket=self.s3_bucket_name, Key=s3_key, Body=compressed_rss_blob, Metadata={RssStateHandler.CONTENT_ENCODING: RssStateHandler.GZIP})
 
 
 class RssNotifier:
@@ -104,7 +113,7 @@ class SimpleRssMailer:
 
 	def download_rss(self, rss_url: str) -> str:
 		with urllib.request.urlopen(rss_url) as f:
-			return f.read()
+			return f.read().decode()
 
 	def process_rss_feed(self, rss_url: str) -> int:
 		"""Downloads the RSS feed, compares it the state, and sends notifications for any new entries. State is updated with the new RSS feed.
@@ -121,7 +130,7 @@ class SimpleRssMailer:
 		new_entries: list[dict] = self.diff_rss_feeds(old_rss_feed, new_rss_feed)
 
 		if len(new_entries) == 0:
-			logger.info('No new entries found in RSS feed {rss_url}')
+			logger.info(f"No new entries found in RSS feed {rss_url}")
 			return 0
 
 		for new_entry in reversed(new_entries): # Reverse the list so that oldest entries are notified first
