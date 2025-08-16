@@ -6,10 +6,16 @@ import json
 import logging
 import os
 import sys
+import time
 import urllib.parse
 import urllib.request
+from aws_xray_sdk.core import xray_recorder
+from aws_xray_sdk.core import patch_all
 
 logger = logging.getLogger(__name__)
+time_start: float = time.time()
+patch_all()
+logger.debug(f"X-Ray patching took {time.time() - time_start:.2f} seconds")
 
 class RssStateHandler:
 	"""Saves and retrieves RSS feed using AWS S3. This allows us to remember what the feed looked like the last time we checked it."""
@@ -111,6 +117,7 @@ class SimpleRssMailer:
 		self.rss_state_handler = rss_state_handler
 		self.rss_notifier = rss_notifier
 
+	@xray_recorder.capture('## Download RSS')
 	def download_rss(self, rss_url: str) -> str:
 		with urllib.request.urlopen(rss_url) as f:
 			return f.read().decode()
@@ -140,6 +147,7 @@ class SimpleRssMailer:
 
 		return len(new_entries)
 
+	@xray_recorder.capture('## Diff RSS feeds')
 	def diff_rss_feeds(self, old_feed_str: str, new_feed_str: str) -> list[dict]:
 		"""Returns entries in the new feed that aren't in the old feed.
 

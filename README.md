@@ -11,13 +11,9 @@ Functional:
 
 ## TODOs
 
-* Add AWS X-ray so we can evaluate performance of:
-	* Lambda function overall
-	* RSS retrieval
-	* Diffing
-	* Notifications
 * Lambda layers so it's faster to deploy
 * EventBridge scheduler to kick this thing off
+* Feedparser is slow. Maybe use https://github.com/kagisearch/fastfeedparser instead?
 
 
 ## Developing
