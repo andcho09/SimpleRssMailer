@@ -42,7 +42,7 @@ Resources:
             ScheduleExpression: cron(0 22 * * ? *) # Everyday at 10PM UTC
       LoggingConfig:
         LogGroup: !Ref Log
-      MemorySize: 4096
+      MemorySize: 1024
       Runtime: python3.13
       Timeout: 60
       Tracing: Active
