@@ -108,7 +108,7 @@ class RssNotifier:
 	def generate_notification_message(self, entry: dict) -> str:
 		message: dict = dict()
 		message['default'] = entry['title']
-		message['email'] = f"{entry['title']}\n\nDate: {entry['published']}\n\nLink: {entry['link']}"
+		message['email'] = f"{entry['title']}\n\nArticle date: {entry['published']}\nLink: {entry['link']}"
 		return json.dumps(message)
 
 class SimpleRssMailer:
