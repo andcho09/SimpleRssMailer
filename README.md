@@ -49,8 +49,8 @@ Functional:
 
 Run tests either from:
 
-1. VS Code using the "Test" launch configuration
-1. The terminal using:
+1. VS Code using the "Test" launch configuration (recommend to avoid AWS X-Ray log spam which sets the `AWS_XRAY_SDK_ENABLED` environment variable to `false`)
+1. Or the terminal using:
 
 	```
 	python -m unittest discover test
