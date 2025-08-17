@@ -1,2 +1,4 @@
+.aws-sam
 .venv
+.vscode/launch.json
 __pycache__

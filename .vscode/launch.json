@@ -8,7 +8,7 @@
 			"name": "Check RSS (template)",
 			"type": "debugpy",
 			"request": "launch",
-			"program": "simple_rss_mailer.py",
+			"program": "function/simple_rss_mailer.py",
 			"console": "integratedTerminal",
 			"args": [
 				"<SNS topic ARN that will be notified of new entries>",
@@ -23,7 +23,10 @@
 			"request": "launch",
 			"module": "unittest",
 			"console": "integratedTerminal",
-			"args": ["discover", "test"]
+			"args": ["discover", "test"],
+			"env": {
+				"AWS_XRAY_SDK_ENABLED": "false"
+			}
 		}
 	]
 }

@@ -1,16 +1,27 @@
 import boto3
-import feedparser
+import fastfeedparser
+import gzip
 import hashlib
 import json
 import logging
+import os
 import sys
+import time
 import urllib.parse
 import urllib.request
+from aws_xray_sdk.core import xray_recorder
+from aws_xray_sdk.core import patch_all
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
+time_start: float = time.time()
+patch_all()
+logger.debug(f"X-Ray patching took {time.time() - time_start:.2f} seconds")
 
 class RssStateHandler:
 	"""Saves and retrieves RSS feed using AWS S3. This allows us to remember what the feed looked like the last time we checked it."""
+
+	CONTENT_ENCODING = 'content-encoding'
+	GZIP = 'gzip'
 
 	@staticmethod
 	def calculate_s3_key(s3_path_prefix: str, rss_url: str) -> str:
@@ -54,7 +65,12 @@ class RssStateHandler:
 		s3_key: str = RssStateHandler.calculate_s3_key(self.s3_bucket_path, rss_url)
 		logger.debug(f"Getting RSS state for feed '{rss_url}' from S3 at '{s3_key}'")
 		try:
-			return self.client.get_object(Bucket=self.s3_bucket_name, Key=s3_key).get('Body').read().decode()
+			s3_response: dict = self.client.get_object(Bucket=self.s3_bucket_name, Key=s3_key)
+			content_bytes: bytes = s3_response['Body'].read()
+			if s3_response['Metadata'].get(RssStateHandler.CONTENT_ENCODING) == RssStateHandler.GZIP:
+				return gzip.decompress(content_bytes).decode()
+			else:
+				return content_bytes.decode()
 		except self.client.exceptions.NoSuchKey:
 			return ""
 
@@ -67,8 +83,8 @@ class RssStateHandler:
 		"""
 		s3_key: str = RssStateHandler.calculate_s3_key(self.s3_bucket_path, rss_url)
 		logger.debug(f"Saving RSS state for feed '{rss_url}' to S3 at '{s3_key}'")
-
-		self.client.put_object(Bucket=self.s3_bucket_name, Key=s3_key, Body=rss_blob)
+		compressed_rss_blob: bytes = gzip.compress(rss_blob.encode())
+		self.client.put_object(Bucket=self.s3_bucket_name, Key=s3_key, Body=compressed_rss_blob, Metadata={RssStateHandler.CONTENT_ENCODING: RssStateHandler.GZIP})
 
 
 class RssNotifier:
@@ -76,24 +92,23 @@ class RssNotifier:
 
 	def __init__(self, sns_topic_arn: str):
 		self.sns_topic_arn = sns_topic_arn
-		self.client = boto3.client('sns')
+		# Create the client in the topic's region to avoid "InvalidParameter" TopicArn errors on publish
+		self.client = boto3.client('sns', region_name=sns_topic_arn.split(':')[3])
 
 	def notify(self, entry: dict):
 		logger.info(f"Sending notification to SNS topic {self.sns_topic_arn} for entry: title={entry['title']}, id={entry['id']}, published={entry['published']}")
-		# The topic has to be in same region as this is running otherwise this will create "InvalidParameter" TopicArn errors.
 		response: dict = self.client.publish(
 			TopicArn = self.sns_topic_arn,
 			MessageStructure = 'json',
 			Subject = entry['title'],
-			Message = self.generate_notification_message(entry),
-			MessageDeduplicationId = entry['id']
+			Message = self.generate_notification_message(entry)
 		)
 		logger.debug(f"Published SNS notification {response['MessageId']}")
 
 	def generate_notification_message(self, entry: dict) -> str:
 		message: dict = dict()
 		message['default'] = entry['title']
-		message['email'] = f"{entry['title']}\n\nDate: {entry['published']}\n\nLink: {entry['link']}"
+		message['email'] = f"{entry['title']}\n\nArticle date: {entry['published']}\nLink: {entry['link']}"
 		return json.dumps(message)
 
 class SimpleRssMailer:
@@ -102,9 +117,10 @@ class SimpleRssMailer:
 		self.rss_state_handler = rss_state_handler
 		self.rss_notifier = rss_notifier
 
+	@xray_recorder.capture('## Download RSS')
 	def download_rss(self, rss_url: str) -> str:
 		with urllib.request.urlopen(rss_url) as f:
-			return f.read()
+			return f.read().decode()
 
 	def process_rss_feed(self, rss_url: str) -> int:
 		"""Downloads the RSS feed, compares it the state, and sends notifications for any new entries. State is updated with the new RSS feed.
@@ -121,7 +137,7 @@ class SimpleRssMailer:
 		new_entries: list[dict] = self.diff_rss_feeds(old_rss_feed, new_rss_feed)
 
 		if len(new_entries) == 0:
-			logger.info('No new entries found in RSS feed {rss_url}')
+			logger.info(f"No new entries found in RSS feed {rss_url}")
 			return 0
 
 		for new_entry in reversed(new_entries): # Reverse the list so that oldest entries are notified first
@@ -131,6 +147,7 @@ class SimpleRssMailer:
 
 		return len(new_entries)
 
+	@xray_recorder.capture('## Diff RSS feeds')
 	def diff_rss_feeds(self, old_feed_str: str, new_feed_str: str) -> list[dict]:
 		"""Returns entries in the new feed that aren't in the old feed.
 
@@ -139,10 +156,10 @@ class SimpleRssMailer:
 			new_feed_str (str): new raw RSS feed string
 
 		Returns:
-			list[dict]: A list of feedparser entry dict objects
+			list[dict]: A list of fastfeedparser entry dict objects
 		"""
-		old_feed: feedparser.FeedParserDict = feedparser.parse(old_feed_str)
-		new_feed: feedparser.FeedParserDict = feedparser.parse(new_feed_str)
+		old_feed: fastfeedparser.FastFeedParserDict = fastfeedparser.parse(old_feed_str) if old_feed_str != "" else fastfeedparser.FastFeedParserDict({'entries': []})
+		new_feed: fastfeedparser.FastFeedParserDict = fastfeedparser.parse(new_feed_str)
 
 		old_items_ids: set = set()
 		new_entries: list[dict] = []
@@ -160,17 +177,47 @@ class SimpleRssMailer:
 		else:
 			return entry['link']
 
+def check_feeds(sns_topic_arn: str, bucket: str, bucket_path: str, rss_urls: list[str]) -> int:
+	"""Checks the RSS feeds and sends email-formatted notifications if new entries are found.
+
+	Args:
+		sns_topic_arn (str): SNS topic to send email notifications to
+		bucket (str): S3 bucket used to save RSS feed state (so we remember which articles have been seen already)
+		bucket_path (str): Path within the S3 bucket to save RSS feed state
+		rss_urls (list[str]): List of RSS URLs to check
+
+	Returns:
+		int: _description_
+	"""
+	logger.info(f"Checking RSS feeds. SNS topic ARN: {sns_topic_arn}, S3 bucket: {bucket}, S3 path: {bucket_path}, RSS URLs: {rss_urls}.")
+
+	notifier: RssNotifier = RssNotifier(sns_topic_arn)
+	rss_state: RssStateHandler = RssStateHandler(bucket, bucket_path)
+
+	new_articles: int = 0
+
+	srs: SimpleRssMailer = SimpleRssMailer(rss_state, notifier)
+	for rss_url in rss_urls:
+		new_articles += srs.process_rss_feed(rss_url)
+
+	return new_articles
+
+def handle(event: dict, context: object) -> int:
+	sns_topic_arn: str = os.getenv('SNS_TOPIC_ARN', '<missing>')
+	bucket: str = os.getenv('BUCKET', '<missing>')
+	bucket_path: str = os.getenv('BUCKET_PATH', '<missing>')
+	rss_urls: list[str] = event['rss_urls']
+
+	return check_feeds(sns_topic_arn, bucket, bucket_path, rss_urls)
+
 if __name__ == '__main__':
+	logging.basicConfig() # Basic logging to standard out
+	logger.setLevel(logging.DEBUG)
+
 	sns_topic_arn: str = sys.argv[1]
 	bucket: str = sys.argv[2]
 	bucket_path: str = sys.argv[3]
 	rss_urls: list[str] = sys.argv[4:]
 
-	logger.info(f"Checking RSS feeds. SNS topic ARN: {sns_topic_arn}, S3 bucket: {bucket}, S3 path: {bucket_path}, RSS URLs: {rss_urls}.")
-
-	noitifier: RssNotifier = RssNotifier(sns_topic_arn)
-	rss_state: RssStateHandler = RssStateHandler(bucket, bucket_path)
-
-	srs: SimpleRssMailer = SimpleRssMailer(rss_state, noitifier)
-	for rss_url in rss_urls:
-		srs.process_rss_feed(rss_url)
+	new_articles: int = check_feeds(sns_topic_arn, bucket, bucket_path, rss_urls)
+	logger.info(f"Number of new articles found: {new_articles}")
