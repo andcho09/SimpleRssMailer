@@ -13,7 +13,6 @@ Functional:
 
 * Lambda layers so it's faster to deploy
 * Needs AWS SES (or another email provider) to send HTML-formatted emails. Currently just sends a basic email notification containing the article's title, publication date, and link
-* Feedparser is slow. Maybe use https://github.com/kagisearch/fastfeedparser instead?
 
 
 ## Developing

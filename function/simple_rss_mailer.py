@@ -1,5 +1,5 @@
 import boto3
-import feedparser
+import fastfeedparser
 import gzip
 import hashlib
 import json
@@ -156,10 +156,10 @@ class SimpleRssMailer:
 			new_feed_str (str): new raw RSS feed string
 
 		Returns:
-			list[dict]: A list of feedparser entry dict objects
+			list[dict]: A list of fastfeedparser entry dict objects
 		"""
-		old_feed: feedparser.FeedParserDict = feedparser.parse(old_feed_str)
-		new_feed: feedparser.FeedParserDict = feedparser.parse(new_feed_str)
+		old_feed: fastfeedparser.FastFeedParserDict = fastfeedparser.parse(old_feed_str) if old_feed_str != "" else fastfeedparser.FastFeedParserDict({'entries': []})
+		new_feed: fastfeedparser.FastFeedParserDict = fastfeedparser.parse(new_feed_str)
 
 		old_items_ids: set = set()
 		new_entries: list[dict] = []
