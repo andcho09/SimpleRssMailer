@@ -9,18 +9,30 @@ Functional:
 * This is a simple project aimed at a single subscriber so only one email address can be configured.
 
 
-## TODOs
-
-* Lambda layers so it's faster to deploy
-* Needs AWS SES (or another email provider) to send HTML-formatted emails. Currently just sends a basic email notification containing the article's title, publication date, and link
-
-
 ## Developing
 
 ### Requirements
 
 * Python 3.13
 * AWS account
+	* Various AWS SSM parameters denoting:
+		|Parameter|Description|
+		|---------|-----------|
+		|/RssEmailerZohoNotifier/accountId|Zoho Mail API account ID|
+		|/RssEmailerZohoNotifier/clientId|Zoho Mail API client ID|
+		|/RssEmailerZohoNotifier/clientSecret|Zoho Mail API client secret|
+		|/RssEmailerZohoNotifier/destinationEmail|Email address to send the notification to|
+		|/RssEmailerZohoNotifier/fromEmail|From email address. Must be a valid email address in the Zoho account|
+		|/RssEmailerZohoNotifier/emailSubject|Email subject to use in the notification|
+
+		* Where `RssEmailerZohoNotifier` is the SSM parameter's path prefix. This is passed as an environment variable to the Lambda function. It should start with `/`
+		* Example AWS CLI to create the parameters:
+
+			```sh
+			aws ssm put-parameter --name "<prefix>/clientId" --type "String" --value "1111111" --tags "Key=Application,Value=RssEmailerZohoNotifier" --region us-east-1
+
+			aws ssm put-parameter --name "/RssEmailerZohoNotifier/clientSecret" --type "SecureString" --value "ABCDEF" --tags "Key=Application,Value=RssEmailerZohoNotifier" --region us-east-1
+			```
 * [AWS SAM](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for deployment
 * Docker, also for deployment with [AWS SAM which can help avoid issues when apps depend on natively compiled dependencies](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-build.html)
 
@@ -42,7 +54,7 @@ Functional:
 1. Install requirements:
 
 	```
-	pip install -r function/requirements.txt
+	pip install -r rss/requirements.txt
 	```
 
 ### Unit tests

@@ -2,7 +2,7 @@ import os
 import json
 import unittest
 import unittest.mock
-from function.simple_rss_mailer import RssNotifier, RssStateHandler, SimpleRssMailer
+from rss.simple_rss_mailer import RssNotifier, RssStateHandler, SimpleRssMailer
 
 class MockRssStateHandler(RssStateHandler):
 	"""Unit test version of RssStateHandler which uses local directory instead of S3

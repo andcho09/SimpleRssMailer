@@ -3,24 +3,12 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Deploys Simple Rss Mailer to AWS
 
-# TODO tags
-
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
-Globals:
-  Function:
-    Timeout: 30
-    Tracing: Active
-    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
-    LoggingConfig:
-      LogFormat: JSON
-      LogGroup: !Ref Log
-
 Resources:
   LambdaFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       Description: Checks RSS feeds for new articles and sends email notifications
-      CodeUri: function
+      CodeUri: rss
       Handler: simple_rss_mailer.handle
       #Architectures:
       #- arm64 # Can't use ARM on x86 without emulation in Docker, see https://github.com/aws/aws-sam-cli/issues/7523
@@ -38,9 +26,10 @@ Resources:
             FlexibleTimeWindow:
               MaximumWindowInMinutes: 15
               Mode: FLEXIBLE
-            Input: '{"rss_urls": ["https://www.keycloak.org/rss.xml"]}' # RSS feeds to check
-            ScheduleExpression: cron(0 22 * * ? *) # Everyday at 10PM UTC
+            Input: '{"rss_urls": ["https://www.keycloak.org/rss.xml"]}' # RSS feeds to check. TODO this should be a SSM parameter or something
+            ScheduleExpression: cron(0 19 * * ? *) # Everyday at 7PM UTC
       LoggingConfig:
+        LogFormat: JSON
         LogGroup: !Ref Log
       MemorySize: 1024
       Runtime: python3.13
@@ -60,6 +49,33 @@ Resources:
           Permissions:
             - Read
             - Write
+
+  ZohoEmailerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Responds to SNS notifications be emailing via Zoho Mail API
+      CodeUri: zoho
+      Handler: zoho_emailer.handle
+      #Architectures:
+      #- arm64 # Can't use ARM on x86 without emulation in Docker, see https://github.com/aws/aws-sam-cli/issues/7523
+      Events:
+        SNSEvent:
+          Type: SNS
+          Properties:
+            Topic: !GetAtt SnsTopic.TopicArn
+      Environment:
+        Variables:
+          SSM_PARAMETER_PREFIX: /RssEmailerZohoNotifier # Leading slash, no trailing slash
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref Log
+      MemorySize: 1024
+      Policies:
+        SSMParameterWithSlashPrefixReadPolicy:
+          ParameterName: /RssEmailerZohoNotifier/*
+      Runtime: python3.13
+      Timeout: 60
+      Tracing: Active
 
   SnsTopic:
     Type: AWS::SNS::Topic
