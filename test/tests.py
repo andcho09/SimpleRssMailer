@@ -1,4 +1,5 @@
 import os
+import json
 import unittest
 import unittest.mock
 from function.simple_rss_mailer import RssNotifier, RssStateHandler, SimpleRssMailer
@@ -29,11 +30,69 @@ class MockRssNotifier(RssNotifier):
 	def notify(self, entry: dict):
 		self.notified_entries.append(entry)
 
-class TestRssState(unittest.TestCase):
+class RssStateTest(unittest.TestCase):
 
 	def test_hash_rss_url(self):
 		hash: str = RssStateHandler.calculate_s3_key('rss_feeds', 'https://www.keycloak.org/rss.xml')
 		self.assertEqual('rss_feeds/www.keycloak.org-5120.xml', hash)
+
+class RssNotifierTest(unittest.TestCase):
+
+	def test_generate_notification_message(self):
+		notifier: RssNotifier = RssNotifier('arn:aws:sns:ap-southeast-2:<account-id>:<topic-name>')
+
+		entry_title: str = 'this is the title'
+		entry_published: str = '2025'
+		entry_link: str = 'this is a link'
+
+		entry: dict = {
+			'title': entry_title,
+			'published': entry_published,
+			'link': entry_link
+		}
+		expected_lambda_dict: dict = {
+			'title': entry_title,
+			'link': entry_link,
+			'publishDate': entry_published,
+			'contentType': '',
+			'content': ''
+		}
+		expected: dict = {
+			'default': entry_title,
+			'email': f"{entry_title}\n\nArticle date: {entry_published}\nLink: {entry_link}",
+			'lambda': json.dumps(expected_lambda_dict)
+		}
+		# generate_notification_message with no content
+		self.assertEqual(json.dumps(expected), notifier.generate_notification_message(entry))
+
+		# generate_content_for_sns - empty case
+		self.assertEqual(('', ''), notifier.generate_content_for_sns([]))
+
+		# generate_content_for_sns - plain text only
+		TEXT: str = 'text/plain'
+		TEXT_VALUE: str = 'plain text'
+		HTML: str = 'text/html'
+		HTML_VALUE: str = '<b>html</b> content that is kinda <u>long</u>'
+		contents: list[dict[str, str]] = [{'type': TEXT, 'value': TEXT_VALUE}]
+		self.assertEqual((TEXT, TEXT_VALUE), notifier.generate_content_for_sns(contents))
+
+		# generate_content_for_sns - prefer HTML
+		contents.append({'type': HTML, 'value': HTML_VALUE})
+		self.assertEqual((HTML, HTML_VALUE), notifier.generate_content_for_sns(contents))
+
+		# generate_content_for_sns - prefer HTML but it's too long
+		self.assertEqual((TEXT, TEXT_VALUE), notifier.generate_content_for_sns(contents, 20))
+
+		# generate_content_for_sns - everything is too long
+		self.assertEqual(('', ''), notifier.generate_content_for_sns(contents, 5))
+
+		# generate_notification_message with lambda content
+		entry['content'] = contents
+		expected_lambda_dict['contentType'] = HTML
+		expected_lambda_dict['content'] = HTML_VALUE
+		expected['lambda'] = json.dumps(expected_lambda_dict)
+		self.assertEqual(json.dumps(expected), notifier.generate_notification_message(entry))
+
 
 class SimpleRssMailerTest(unittest.TestCase):
 

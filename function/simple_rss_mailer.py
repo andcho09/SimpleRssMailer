@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 time_start: float = time.time()
@@ -109,7 +110,29 @@ class RssNotifier:
 		message: dict = dict()
 		message['default'] = entry['title']
 		message['email'] = f"{entry['title']}\n\nArticle date: {entry['published']}\nLink: {entry['link']}"
+
+		content_type, content_value = self.generate_content_for_sns(entry['content'] if 'content' in entry else [])
+		lambda_message: dict = {
+			'title': entry['title'],
+			'link': entry['link'],
+			'publishDate': entry['published'],
+			'contentType': content_type,
+			'content': content_value
+		}
+		message['lambda'] = json.dumps(lambda_message)
+
 		return json.dumps(message)
+
+	def generate_content_for_sns(self, contents: list[dict[str, str]], size_limit: int = 255000) -> Tuple[str, str]:
+		if len(contents) == 1 and len(contents[0]['value'].encode('utf-8')) < size_limit: # SNS has a 256KB limit
+			return (contents[0]['type'], contents[0]['value'])
+
+		for preferred_type in ['text/html', 'text/plain']: # Prefer HTML of plain text
+			for content in contents:
+				if content['type'] == preferred_type and len(content['value'].encode('utf-8')) < size_limit: # SNS has a 256KB limit
+					return (content['type'], content['value'])
+
+		return ('', '') # Either no content or too long
 
 class SimpleRssMailer:
 
