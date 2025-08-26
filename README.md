@@ -7,6 +7,7 @@ Periodically checks an RSS feed and emails the articles.
 Functional:
 
 * This is a simple project aimed at a single subscriber so only one email address can be configured.
+* When checking the RSS feed for the first time, no notifications are sent. Notifications are sent from this point onwards.
 
 
 ## Developing

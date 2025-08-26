@@ -138,12 +138,8 @@ class SimpleRssMailerTest(unittest.TestCase):
 				self.assertEqual(0, srm.process_rss_feed('https://www.keycloak.org/rss.xml'))
 				self.assertEqual(0, len(self.mock_rss_notifier.notified_entries))
 
-				# With empty state - so everything is new
+				# With empty state - so everything is new but initial state logic prevents spamming
 				self.mock_rss_notifier.notified_entries.clear()
 				srm: SimpleRssMailer = SimpleRssMailer(self.mock_rss_state_handler_empty, self.mock_rss_notifier)
-				self.assertEqual(159, srm.process_rss_feed('https://www.keycloak.org/rss.xml'))
-				self.assertEqual(159, len(self.mock_rss_notifier.notified_entries))
-				self.assertEqual(self.mock_rss_notifier.notified_entries[0]['title'], 'How to Setup MS AD FS 3.0 as Brokered Identity Provider in Keycloak')
-				self.assertEqual(self.mock_rss_notifier.notified_entries[0]['id'], 'https://www.keycloak.org/2017/03/how-to-setup-ms-ad-fs-30-as-brokered')
-				self.assertEqual(self.mock_rss_notifier.notified_entries[158]['title'], 'BRZ Keycloak case study published')
-				self.assertEqual(self.mock_rss_notifier.notified_entries[158]['id'], 'https://www.keycloak.org/2025/08/brz-case-study')
+				self.assertEqual(0, srm.process_rss_feed('https://www.keycloak.org/rss.xml'))
+				self.assertEqual(0, len(self.mock_rss_notifier.notified_entries))
