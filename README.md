@@ -19,12 +19,13 @@ Functional:
 	* Various AWS SSM parameters denoting:
 		|Parameter|Description|
 		|---------|-----------|
-		|/RssEmailerZohoNotifier/accountId|Zoho Mail API account ID|
+		|/RssEmailerZohoNotifier/accountId|Zoho Mail API account ID for sending HTML-formatted emails via Zoho|
 		|/RssEmailerZohoNotifier/clientId|Zoho Mail API client ID|
 		|/RssEmailerZohoNotifier/clientSecret|Zoho Mail API client secret|
 		|/RssEmailerZohoNotifier/destinationEmail|Email address to send the notification to|
 		|/RssEmailerZohoNotifier/fromEmail|From email address. Must be a valid email address in the Zoho account|
 		|/RssEmailerZohoNotifier/emailSubject|Email subject to use in the notification|
+		|/RssEmailerZohoNotifier/rssUrls|JSON list of RSS URLs to check, e.g. `["https://www.keycloak.org/rss.xml", "https://aws.amazon.com/blogs/aws/feed/"]`|
 
 		* Where `RssEmailerZohoNotifier` is the SSM parameter's path prefix. This is passed as an environment variable to the Lambda function. It should start with `/`
 		* Example AWS CLI to create the parameters:
