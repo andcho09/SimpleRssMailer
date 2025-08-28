@@ -16,10 +16,11 @@ lint = true
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
+region = "us-east-1"
 image_repositories = []
+parameter_overrides = "RssUrlsSsmParameter=arn:aws:ssm:us-east-1:123456789012:parameter/RssEmailerZohoNotifier/rssUrls"
 resolve_s3 = true
 s3_prefix = "SimpleRssMailer"
-region = "us-east-1"
 tags = "Application=SimpleRssMailer"
 
 [default.package.parameters]
