@@ -157,17 +157,23 @@ class SimpleRssMailer:
 		new_rss_feed: str = self.download_rss(rss_url)
 		old_rss_feed: str = self.rss_state_handler.get_rss_feed(rss_url)
 
+		# First time seeing feed
+		if len(old_rss_feed) == 0:
+			logger.info(f"Looks like this is the first time we're checking RSS feed {rss_url}. Assuming everything is already seen instead of spamming all of the old articles. We'll notify new articles from now on.")
+			self.rss_state_handler.save_rss_feed(rss_url, new_rss_feed)
+			return 0
+
 		new_entries: list[dict] = self.diff_rss_feeds(old_rss_feed, new_rss_feed)
 
+		# Nothing new
 		if len(new_entries) == 0:
 			logger.info(f"No new entries found in RSS feed {rss_url}")
 			return 0
 
+		# New articles
 		for new_entry in reversed(new_entries): # Reverse the list so that oldest entries are notified first
 			self.rss_notifier.notify(new_entry)
-
 		self.rss_state_handler.save_rss_feed(rss_url, new_rss_feed)
-
 		return len(new_entries)
 
 	@xray_recorder.capture('## Diff RSS feeds')
