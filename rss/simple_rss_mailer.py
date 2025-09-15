@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -213,12 +214,17 @@ def check_feeds(sns_topic_arn: str, bucket: str, bucket_path: str, rss_urls: lis
 		sns_topic_arn (str): SNS topic to send email notifications to
 		bucket (str): S3 bucket used to save RSS feed state (so we remember which articles have been seen already)
 		bucket_path (str): Path within the S3 bucket to save RSS feed state
-		rss_urls (list[str]): List of RSS URLs to check
+		rss_urls (list[str]): List of RSS URLs to check. If the first element is a SSM Parameter ARN, this function will look up RSS URLs from the SSM parameter where it expects a JSON list
 
 	Returns:
-		int: _description_
+		int: number of new articles found
 	"""
 	logger.info(f"Checking RSS feeds. SNS topic ARN: {sns_topic_arn}, S3 bucket: {bucket}, S3 path: {bucket_path}, RSS URLs: {rss_urls}.")
+
+	if len(rss_urls) > 0 and re.match(r'^arn:aws:ssm:[a-z0-9-]+:[0-9]+:parameter/.*$', rss_urls[0]):
+		ssm_parameter: str = rss_urls[0]
+		rss_urls = get_rss_urls_from_parameter(ssm_parameter)
+		logger.info(f"Retrieved RSS URLs from SSM parameter, {ssm_parameter}. RSS URLs: {rss_urls}.")
 
 	notifier: RssNotifier = RssNotifier(sns_topic_arn)
 	rss_state: RssStateHandler = RssStateHandler(bucket, bucket_path)
@@ -230,6 +236,10 @@ def check_feeds(sns_topic_arn: str, bucket: str, bucket_path: str, rss_urls: lis
 		new_articles += srs.process_rss_feed(rss_url)
 
 	return new_articles
+
+def get_rss_urls_from_parameter(ssm_parameter_arn: str) -> list[str]:
+	ssm_client = boto3.client('ssm', region_name=ssm_parameter_arn.split(':')[3])
+	return json.loads(ssm_client.get_parameter(Name=ssm_parameter_arn)['Parameter']['Value'])
 
 def handle(event: dict, context: object) -> int:
 	sns_topic_arn: str = os.getenv('SNS_TOPIC_ARN', '<missing>')
