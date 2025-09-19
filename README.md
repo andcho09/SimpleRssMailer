@@ -22,7 +22,7 @@ Functional:
 		|/RssEmailerZohoNotifier/accountId|Zoho Mail API account ID|
 		|/RssEmailerZohoNotifier/clientId|Zoho Mail API client ID|
 		|/RssEmailerZohoNotifier/clientSecret|Zoho Mail API client secret|
-		|/RssEmailerZohoNotifier/destinationEmail|Email address to send the notification to|
+		|/RssEmailerZohoNotifier/destinationEmail|Semi-colon separated list of email address to send the notification to|
 		|/RssEmailerZohoNotifier/fromEmail|From email address. Must be a valid email address in the Zoho account|
 		|/RssEmailerZohoNotifier/emailSubject|Email subject to use in the notification|
 
