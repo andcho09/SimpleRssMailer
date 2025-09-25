@@ -22,7 +22,7 @@ def handle(event: dict, context: object):
 	destination_emails = _get_parameter(ssm_client, ssm_parameter_prefix, 'destinationEmail').split(';')
 	from_address = _get_parameter(ssm_client, ssm_parameter_prefix, 'fromEmail')
 
-	logger.debug(f"Configuration: client_id={client_id}, account_id={account_id}, from={from_address}, destination={destination_email}")
+	logger.debug(f"Configuration: client_id={client_id}, account_id={account_id}, from={from_address}, destination={destination_emails}")
 
 	# Zoho Mail API client
 	client = BackendApplicationClient(client_id=client_id)
