@@ -19,11 +19,10 @@ def handle(event: dict, context: object):
 	account_id = _get_parameter(ssm_client, ssm_parameter_prefix, 'accountId')
 	client_id = _get_parameter(ssm_client, ssm_parameter_prefix, 'clientId')
 	client_secret = _get_parameter(ssm_client, ssm_parameter_prefix, 'clientSecret')
-	# TODO this should really be an list
-	destination_email = _get_parameter(ssm_client, ssm_parameter_prefix, 'destinationEmail')
+	destination_emails = _get_parameter(ssm_client, ssm_parameter_prefix, 'destinationEmail').split(';')
 	from_address = _get_parameter(ssm_client, ssm_parameter_prefix, 'fromEmail')
 
-	logger.debug(f"Configuration: client_id={client_id}, account_id={account_id}, from={from_address}, destination={destination_email}")
+	logger.debug(f"Configuration: client_id={client_id}, account_id={account_id}, from={from_address}, destination={destination_emails}")
 
 	# Zoho Mail API client
 	client = BackendApplicationClient(client_id=client_id)
@@ -47,13 +46,14 @@ def handle(event: dict, context: object):
 			if content:
 				email_content += f'\n\n{content}'
 
-		data: dict = {
-			"fromAddress": from_address,
-			"toAddress": destination_email,
-			"subject": title,
-			"content": email_content,
-			"mailFormat": mail_format,
-			"askReceipt": 'no'
-		}
-		response = oauth.post(f"https://mail.zoho.com/api/accounts/{account_id}/messages", json=data)
-		logger.info(response.status_code)
+		for destination_email in destination_emails:
+			data: dict = {
+				"fromAddress": from_address,
+				"toAddress": destination_email.strip(),
+				"subject": title,
+				"content": email_content,
+				"mailFormat": mail_format,
+				"askReceipt": 'no'
+			}
+			response = oauth.post(f"https://mail.zoho.com/api/accounts/{account_id}/messages", json=data)
+			logger.info(f"To={destination_email}, Title={title}. Response code={response.status_code}")
