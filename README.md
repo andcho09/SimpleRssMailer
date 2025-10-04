@@ -100,3 +100,20 @@ Run tests either from:
 		]
 	}
 	```
+	Or, the payload can also be an AWS SSM parameter containing a JSON list of URLs to check. In this case:
+		
+	* The payload will be (formatted for readability):
+
+		```json
+		{
+			"rss_urls": [
+				"arn:aws:ssm:us-east-1:123456789012:parameter/RssEmailerZohoNotifier/rssUrls"
+			]
+		}
+		```
+	
+	* And the value of the SSM parameter contains:
+
+		```json
+		["https://www.keycloak.org/rss.xml", "https://privacysandbox.com/rss/index.xml"]
+		```
