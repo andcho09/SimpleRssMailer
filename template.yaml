@@ -3,6 +3,14 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Deploys Simple Rss Mailer to AWS
 
+Parameters:
+  RssUrlsSsmParameter:
+    Type: AWS::SSM::Parameter::Name
+    Description: SSM parameter that defines the RSS URLs to check as a JSON array, e.g. ["url1", "url2"]
+
+Conditions:
+  RssUrlsSsmParameterProvided: !Not [!Equals [!Ref RssUrlsSsmParameter, ""]]
+
 Resources:
   LambdaFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -26,12 +34,21 @@ Resources:
             FlexibleTimeWindow:
               MaximumWindowInMinutes: 15
               Mode: FLEXIBLE
-            Input: '{"rss_urls": ["https://www.keycloak.org/rss.xml"]}' # RSS feeds to check. TODO this should be a SSM parameter or something
+            Input: !Sub '{"rss_urls": ["${RssUrlsSsmParameter}"]}' # RSS URL feeds to check. Or if the first URL is a AWS SSM parameter store ARN, retrieve RSS URLs from there instead
             ScheduleExpression: cron(0 19 * * ? *) # Everyday at 7PM UTC
       LoggingConfig:
         LogFormat: JSON
         LogGroup: !Ref Log
       MemorySize: 1024
+      Policies: !If
+        - RssUrlsSsmParameterProvided
+        - Statement:
+            Effect: Allow
+            Action:
+              - "ssm:GetParameter"
+            Resource:
+              - !Ref RssUrlsSsmParameter
+        - !Ref 'AWS::NoValue'
       Runtime: python3.13
       Timeout: 60
       Tracing: Active
